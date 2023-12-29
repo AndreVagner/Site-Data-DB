@@ -2,68 +2,46 @@ import pathlib
 import numpy as np
 import matplotlib.pyplot as plt
 import tensorflow as tf
-from tensorflow.keras.utils import image_dataset_from_directory, plot_model
-from tensorflow.keras import layers
-from warnings import filterwarnings
+from tensorflow.keras.utils import image_dataset_from_directory
 from tensorflow.keras import layers, models
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import confusion_matrix
 import seaborn as sns
+from tensorflow.keras.models import load_model
 
-filterwarnings("ignore")
+#dataset je ke stažení zde: https://www.kaggle.com/datasets/a2015003713/militaryaircraftdetectiondataset
 
 directory = "./data/crop/"
 path_for_data = pathlib.Path(directory)
 
 train_df = image_dataset_from_directory(path_for_data,
-                                        image_size = (128, 128),
-                                        validation_split = 0.3,
-                                        subset = "training",
-                                        shuffle = True,
-                                        batch_size = 25,
-                                        seed = 123)
+                                        image_size=(128, 128),
+                                        validation_split=0.3,
+                                        subset="training",
+                                        shuffle=True,
+                                        batch_size=25,
+                                        seed=123)
 
 validation_df = image_dataset_from_directory(path_for_data,
-                                             image_size = (128, 128),
-                                             validation_split = 0.35,
-                                             subset = "validation",
-                                             shuffle = True,
-                                             batch_size = 25,
-                                             seed = 123)
+                                             image_size=(128, 128),
+                                             validation_split=0.35,
+                                             subset="validation",
+                                             shuffle=True,
+                                             batch_size=25,
+                                             seed=123)
 
 print("There is {} images in the training dataset".format(len(train_df)))
 print("There is {} images in the validation dataset".format(len(validation_df)))
 
 validation_batches = tf.data.experimental.cardinality(validation_df)
-# take validation batches for test set
+# take validation batches for the test set
 test_df = validation_df.take(validation_batches // 5)
-# skip validation batches for validation set
+# skip validation batches for the validation set
 validation_df = validation_df.skip(validation_batches // 5)
 
 class_names = train_df.class_names
 
-# Define the CNN model
-model = models.Sequential([
-    layers.Conv2D(32, (3, 3), activation='relu', input_shape=(128, 128, 3)),
-    layers.MaxPooling2D((2, 2)),
-    layers.Conv2D(64, (3, 3), activation='relu'),
-    layers.MaxPooling2D((2, 2)),
-    layers.Conv2D(64, (3, 3), activation='relu'),
-    layers.Flatten(),
-    layers.Dense(64, activation='relu'),
-    layers.Dense(len(class_names), activation='softmax')
-])
-
-# Compile the model
-model.compile(optimizer='adam',
-              loss='sparse_categorical_crossentropy',
-              metrics=['accuracy'])
-
-# Train the model
-history = model.fit(train_df, validation_data=validation_df, epochs=2)
-
-# Evaluate the model on the test set
-test_loss, test_accuracy = model.evaluate(test_df)
-print("Test Accuracy:", test_accuracy)
+# Load the model
+model = load_model('C:/Users/vagne/OneDrive/Desktop/skola/site/model.h5')
 
 # Extract true labels from the test dataset
 true_labels = np.concatenate([y for _, y in test_df])
@@ -84,21 +62,6 @@ plt.title('Confusion Matrix')
 plt.show()
 
 
-# Vizualizace vývoje přesnosti a ztráty
-plt.figure(figsize=(12, 4))
-plt.subplot(1, 2, 1)
-plt.plot(history.history['accuracy'], label='Train Accuracy')
-plt.plot(history.history['val_accuracy'], label='Validation Accuracy')
-plt.legend()
-plt.title('Training and Validation Accuracy')
-
-plt.subplot(1, 2, 2)
-plt.plot(history.history['loss'], label='Train Loss')
-plt.plot(history.history['val_loss'], label='Validation Loss')
-plt.legend()
-plt.title('Training and Validation Loss')
-plt.show()
-
 # Get the indices of incorrectly classified images
 incorrect_indices = np.where(true_labels != predicted_labels)[0]
 
@@ -106,7 +69,10 @@ incorrect_indices = np.where(true_labels != predicted_labels)[0]
 num_display = min(10, len(incorrect_indices))
 
 plt.figure(figsize=(15, 6))
-for i in range(num_display):
+displayed_count = 0
+i = 0
+
+while displayed_count < num_display and i < len(incorrect_indices):
     index = incorrect_indices[i]
 
     # Fetch the image and true label
@@ -120,10 +86,14 @@ for i in range(num_display):
     true_class_name = class_names[true_label]
     predicted_class_name = class_names[predicted_class_index]
 
-    # Plot the image with true and predicted labels
-    plt.subplot(2, 5, i + 1)
-    plt.imshow(image.astype("uint8"))
-    plt.title(f'True: {true_class_name}, Predicted: {predicted_class_name}')
-    plt.axis('off')
+    # If the true and predicted classes are different, display the image
+    if true_class_name != predicted_class_name:
+        plt.subplot(2, 5, displayed_count + 1)
+        plt.imshow(image.astype("uint8"))
+        plt.title(f'True: {true_class_name}, Predicted: {predicted_class_name}')
+        plt.axis('off')
+        displayed_count += 1
+
+    i += 1
 
 plt.show()
